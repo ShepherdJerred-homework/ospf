@@ -4,10 +4,7 @@
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
 
 public class ospf {
     public static void main(String[] args) throws FileNotFoundException {
@@ -24,11 +21,69 @@ public class ospf {
     static void printSolutions(List<Solution> solutions) throws FileNotFoundException {
         File outputFile = new File("ospf.out");
         PrintWriter printWriter = new PrintWriter(outputFile);
-        solutions.forEach(solution -> printSolution(solution, printWriter));
+        int i = 0;
+        for (Solution solution : solutions) {
+            printSolution(solution, printWriter);
+            if (i < solutions.size() - 1) {
+                printWriter.println("*****");
+                System.out.println("*****");
+            }
+            i++;
+        }
+        printWriter.close();
+    }
+
+    static int findMinDistance(Set<Integer> sptSet, double[] distances) {
+        int u = -1;
+        for (int j = 0; j < distances.length; j++) {
+            if (sptSet.contains(j)) {
+                continue;
+            }
+            if ((u == -1 || distances[j] < distances[u]) && distances[j] != -1) {
+                u = j;
+            }
+        }
+        return u;
+    }
+
+    // https://www.geeksforgeeks.org/dijkstras-shortest-path-algorithm-greedy-algo-7/
+    static DistancesFromSourceToDestinations findShortestPath(double[][] matrix, int source, int numberOfNodes) {
+        Set<Integer> sptSet = new HashSet<>();
+        double[] distances = new double[numberOfNodes];
+
+        for (int i = 0; i < numberOfNodes; i++) {
+            if (i == source - 1) {
+                distances[i] = 0.0;
+            } else {
+                distances[i] = Double.MAX_VALUE;
+            }
+        }
+
+        for (int i = 0; i < numberOfNodes; i++) {
+            int u = findMinDistance(sptSet, distances);
+
+            sptSet.add(u);
+
+            for (int v = 0; v < numberOfNodes; v++) {
+                if (!sptSet.contains(v) && matrix[u][v] != 0 && distances[u] != Double.MAX_VALUE && distances[u] + matrix[u][v] < distances[v]) {
+                    distances[v] = distances[u] + matrix[u][v];
+                }
+            }
+        }
+
+        List<DestinationDistance> paths = new ArrayList<>();
+        sptSet.forEach(destination -> {
+            if (destination != source - 1) {
+                paths.add(new DestinationDistance(destination, distances[destination]));
+            }
+        });
+        return new DistancesFromSourceToDestinations(source, paths);
     }
 
     static Solution solveInput(Input input) {
-        return null;
+        List<DistancesFromSourceToDestinations> paths = new ArrayList<>();
+        input.sources.forEach(source -> paths.add(findShortestPath(input.matrix, source, input.numberOfNodes)));
+        return new Solution(paths);
     }
 
     static List<Solution> solveInputs(List<Input> inputs) {
@@ -37,53 +92,45 @@ public class ospf {
         return solutions;
     }
 
-    static class PathDistancePair {
+    static class DestinationDistance {
         int destination;
-        int distance;
+        double distance;
 
-        public PathDistancePair(int destination, int distance) {
+        public DestinationDistance(int destination, double distance) {
             this.destination = destination;
             this.distance = distance;
         }
 
         @Override
         public String toString() {
-            return "PathDistancePair{" +
-                    "destination=" + destination +
-                    ", distance=" + distance +
-                    '}';
+            return String.format("%s(%.2f)", destination + 1, distance);
         }
     }
 
-    static class ShortestPathsFromSource {
+    static class DistancesFromSourceToDestinations {
         int source;
-        List<PathDistancePair> pathDistancePairs;
+        List<DestinationDistance> destinationDistances;
 
-        public ShortestPathsFromSource(int source, List<PathDistancePair> pathDistancePairs) {
+        public DistancesFromSourceToDestinations(int source, List<DestinationDistance> destinationDistances) {
             this.source = source;
-            this.pathDistancePairs = pathDistancePairs;
+            this.destinationDistances = destinationDistances;
         }
 
         @Override
         public String toString() {
-            return "ShortestPaths{" +
-                    "source=" + source +
-                    ", pathDistancePairs=" + pathDistancePairs +
-                    '}';
+            return String.format("%s: %s", source, destinationDistances.toString().replace("[", "").replace("]", "").replace(",", ""));
         }
     }
 
     static class Solution {
-        List<ShortestPathsFromSource> paths;
+        List<DistancesFromSourceToDestinations> paths;
 
         @Override
         public String toString() {
-            return "Solution{" +
-                    "paths=" + paths +
-                    '}';
+            return paths.toString().replace("[", "").replace("]", "").replace(", ", "\n");
         }
 
-        public Solution(List<ShortestPathsFromSource> paths) {
+        public Solution(List<DistancesFromSourceToDestinations> paths) {
             this.paths = paths;
         }
     }
@@ -100,11 +147,17 @@ public class ospf {
                 break;
             }
 
-            Long[][] matrix = new Long[numberOfNodes][numberOfNodes];
+            double[][] matrix = new double[numberOfNodes][numberOfNodes];
             for (int i = 0; i < numberOfNodes; i++) {
                 for (int j = 0; j < numberOfNodes; j++) {
                     long k = scanner.nextLong();
-                    matrix[i][j] = k;
+                    double d;
+                    if (k == 0) {
+                        d = 0;
+                    } else {
+                        d = 10e7 / k;
+                    }
+                    matrix[i][j] = d;
                 }
             }
 
@@ -123,10 +176,10 @@ public class ospf {
 
     static class Input {
         int numberOfNodes;
-        Long[][] matrix;
+        double[][] matrix;
         List<Integer> sources;
 
-        public Input(int numberOfNodes, Long[][] matrix, List<Integer> sources) {
+        public Input(int numberOfNodes, double[][] matrix, List<Integer> sources) {
             this.numberOfNodes = numberOfNodes;
             this.matrix = matrix;
             this.sources = sources;
